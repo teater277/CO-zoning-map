@@ -17,6 +17,16 @@ const map = new maplibregl.Map({
     style: {
         version: 8,
         sources: {
+            'osm': {
+                type: 'raster',
+                tiles: [
+                    'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png'
+                ],
+                tileSize: 256,
+                attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            },
             'zoning': {
                 type: 'vector',
                 url: 'pmtiles://./data/colorado_zoning.pmtiles',
@@ -25,17 +35,17 @@ const map = new maplibregl.Map({
         },
         layers: [
             {
-                id: 'background',
-                type: 'background',
-                paint: {
-                    'background-color': '#f8f9fa'
-                }
+                id: 'osm-tiles',
+                type: 'raster',
+                source: 'osm',
+                minzoom: 0,
+                maxzoom: 19
             }
         ]
     },
     center: [-104.95, 39.74],  // Denver
     zoom: 10,
-    maxZoom: 16,
+    maxZoom: 18,
     minZoom: 8
 });
 
@@ -67,7 +77,7 @@ map.on('load', () => {
                 'U', ZONING_COLORS.U,
                 '#cccccc'  // Default fallback
             ],
-            'fill-opacity': 0.7,
+            'fill-opacity': 0.5,  // More transparent to see streets below
             'fill-outline-color': 'rgba(0, 0, 0, 0)'
         }
     });
@@ -79,15 +89,15 @@ map.on('load', () => {
         source: 'zoning',
         'source-layer': 'zoning',
         paint: {
-            'line-color': '#ffffff',
+            'line-color': '#333333',
             'line-width': [
                 'interpolate',
                 ['linear'],
                 ['zoom'],
-                10, 0.3,
-                14, 1
+                10, 0.2,
+                14, 0.8
             ],
-            'line-opacity': 0.5
+            'line-opacity': 0.3
         }
     });
 
@@ -155,36 +165,33 @@ map.on('click', 'zoning-fill', (e) => {
 function buildPopupHTML(props) {
     let html = '<div class="popup-content">';
 
-    // Header: Zone name and jurisdiction
+    // Header: Zone name
     html += '<div class="popup-header">';
     html += `<h3>${props.abbrvname || props.name || 'Unknown Zone'}</h3>`;
-    if (props.jurisdiction_name) {
-        html += `<div class="jurisdiction">${props.jurisdiction_name}</div>`;
+    if (props.name && props.name !== props.abbrvname) {
+        html += `<div class="jurisdiction" style="font-size: 13px; color: #6b7280; margin-top: 4px;">${props.name}</div>`;
     }
     html += '</div>';
 
-    // Zoning type description
-    if (props.zoning_type_description) {
+    // Zoning type badge
+    if (props.type) {
         html += '<div class="popup-section">';
-        html += `<p style="color: #6b7280; font-size: 13px; margin-bottom: 8px;">${props.zoning_type_description}</p>`;
-        html += '</div>';
-    }
-
-    // Housing types allowed summary
-    if (props.housing_types_allowed) {
-        html += '<div class="popup-section">';
-        html += '<h4>Housing Types Allowed</h4>';
-        html += `<p style="font-size: 13px; color: #374151;">${props.housing_types_allowed}</p>`;
-        html += '</div>';
-    }
-
-    // Multifamily allowed badge
-    if (props.allows_multifamily !== null && props.allows_multifamily !== undefined) {
-        html += '<div class="popup-section">';
-        const allowsMF = props.allows_multifamily === 'Yes' || props.allows_multifamily === true;
-        const badgeClass = allowsMF ? 'badge-yes' : 'badge-no';
-        const badgeText = allowsMF ? 'Allows Multifamily' : 'No Multifamily';
-        html += `<span class="badge ${badgeClass}">${badgeText}</span>`;
+        const typeLabels = {
+            'R': 'Residential',
+            'M': 'Mixed-Use / Commercial',
+            'X': 'Special Purpose',
+            'O': 'Overlay District',
+            'U': 'Unclassified'
+        };
+        const typeColors = {
+            'R': '#fbbf24',
+            'M': '#f87171',
+            'X': '#4ade80',
+            'O': '#a78bfa',
+            'U': '#9ca3af'
+        };
+        const typeLabel = typeLabels[props.type] || props.type;
+        html += `<span class="badge" style="background-color: ${typeColors[props.type]}; color: #1f2937; font-weight: 600;">${typeLabel}</span>`;
         html += '</div>';
     }
 
@@ -202,11 +209,16 @@ function buildPopupHTML(props) {
     housingTypes.forEach(type => {
         const treatment = props[`${type.key}_treatment`];
         const minlot = props[`${type.key}_minlotacres`];
+        const minlotMin = props[`${type.key}_minlotacres_min`];
+        const minlotMax = props[`${type.key}_minlotacres_max`];
         const parking = props[`${type.key}_parking`];
         const height = props[`${type.key}_heightcap`];
+        const elderlyonly = props[`${type.key}_elderlyonly`];
+        const sewage = props[`${type.key}_sewage`];
+        const transit = props[`${type.key}_transit`];
 
         // Only show if there's data for this housing type
-        if (treatment || minlot || parking || height) {
+        if (treatment || minlot || minlotMin || parking || height) {
             hasDetails = true;
             detailsHTML += `<div class="popup-housing-type">`;
             detailsHTML += `<h5>${type.label}</h5>`;
@@ -219,7 +231,19 @@ function buildPopupHTML(props) {
                 detailsHTML += `</div>`;
             }
 
-            if (minlot) {
+            if (elderlyonly && elderlyonly.toString().toLowerCase() === 'true') {
+                detailsHTML += `<div class="popup-field">`;
+                detailsHTML += `<span class="popup-field-label">Restriction:</span>`;
+                detailsHTML += `<span class="badge badge-conditional">Elderly Only</span>`;
+                detailsHTML += `</div>`;
+            }
+
+            if (minlotMin || minlotMax) {
+                detailsHTML += `<div class="popup-field">`;
+                detailsHTML += `<span class="popup-field-label">Min Lot Size:</span>`;
+                detailsHTML += `<span class="popup-field-value">${formatLotRange(minlotMin, minlotMax)}</span>`;
+                detailsHTML += `</div>`;
+            } else if (minlot) {
                 detailsHTML += `<div class="popup-field">`;
                 detailsHTML += `<span class="popup-field-label">Min Lot Size:</span>`;
                 detailsHTML += `<span class="popup-field-value">${formatLotSize(minlot)}</span>`;
@@ -240,6 +264,20 @@ function buildPopupHTML(props) {
                 detailsHTML += `</div>`;
             }
 
+            if (sewage && sewage.toString().toLowerCase() === 'true') {
+                detailsHTML += `<div class="popup-field">`;
+                detailsHTML += `<span class="popup-field-label">Sewage Required:</span>`;
+                detailsHTML += `<span class="popup-field-value">Yes</span>`;
+                detailsHTML += `</div>`;
+            }
+
+            if (transit && transit.toString().toLowerCase() === 'true') {
+                detailsHTML += `<div class="popup-field">`;
+                detailsHTML += `<span class="popup-field-label">Near Transit Required:</span>`;
+                detailsHTML += `<span class="popup-field-value">Yes</span>`;
+                detailsHTML += `</div>`;
+            }
+
             detailsHTML += `</div>`;
         }
     });
@@ -249,14 +287,29 @@ function buildPopupHTML(props) {
         html += '<h4>Regulations by Housing Type</h4>';
         html += detailsHTML;
         html += '</div>';
+    } else {
+        html += '<div class="popup-section">';
+        html += '<p style="color: #6b7280; font-style: italic; margin: 4px 0;">Regulation details not available for this district.</p>';
+        html += '</div>';
     }
 
     // Accessory units
-    if (props.accessory_treatment) {
+    if (props.accessory_treatment || props.accessory_occupancy) {
         html += '<div class="popup-section">';
         html += '<h4>Accessory Units (ADUs)</h4>';
-        const badgeClass = getBadgeClass(props.accessory_treatment);
-        html += `<span class="badge ${badgeClass}">${props.accessory_treatment}</span>`;
+        if (props.accessory_treatment) {
+            const badgeClass = getBadgeClass(props.accessory_treatment);
+            html += `<div class="popup-field">`;
+            html += `<span class="popup-field-label">Treatment:</span>`;
+            html += `<span class="badge ${badgeClass}">${props.accessory_treatment}</span>`;
+            html += `</div>`;
+        }
+        if (props.accessory_occupancy) {
+            html += `<div class="popup-field">`;
+            html += `<span class="popup-field-label">Occupancy:</span>`;
+            html += `<span class="popup-field-value">${props.accessory_occupancy}</span>`;
+            html += `</div>`;
+        }
         html += '</div>';
     }
 
@@ -297,6 +350,19 @@ function formatLotSize(acres) {
     } else {
         return `${acresNum.toFixed(2)} acres`;
     }
+}
+
+/**
+ * Format lot size range for display (min-max)
+ */
+function formatLotRange(minAcres, maxAcres) {
+    const minStr = minAcres ? formatLotSize(minAcres) : null;
+    const maxStr = maxAcres ? formatLotSize(maxAcres) : null;
+
+    if (minStr && maxStr && minStr !== maxStr) {
+        return `${minStr} - ${maxStr}`;
+    }
+    return minStr || maxStr || 'N/A';
 }
 
 /**
