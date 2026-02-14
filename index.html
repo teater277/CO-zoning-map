@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Colorado Zoning Atlas</title>
+
+    <!-- MapLibre GL JS -->
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+    <!-- PMTiles -->
+    <script src="https://unpkg.com/pmtiles@3.2.0/dist/pmtiles.js"></script>
+
+    <!-- Custom styles -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="map"></div>
+
+    <div class="poc-banner">
+        ⚠️ PROOF OF CONCEPT - Partial coverage only (26 jurisdictions in central Denver metro)
+    </div>
+
+    <div class="title-bar">
+        <h1>Denver Metro Zoning Atlas</h1>
+        <p><strong>Proof of Concept (Incomplete)</strong><br>
+        Partial coverage: 26 jurisdictions, ~60K parcels in central Denver metro area</p>
+    </div>
+
+    <div class="legend">
+        <h3>Zoning Types</h3>
+        <div class="legend-item">
+            <span class="legend-color" style="background-color: #fbbf24;"></span>
+            <span>Residential (R)</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-color" style="background-color: #f87171;"></span>
+            <span>Mixed/Commercial (M)</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-color" style="background-color: #4ade80;"></span>
+            <span>Special Purpose (X)</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-color" style="background-color: #a78bfa;"></span>
+            <span>Overlay (O)</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-color" style="background-color: #9ca3af;"></span>
+            <span>Unclassified (U)</span>
+        </div>
+    </div>
+
+    <div class="info-panel">
+        <p><strong>Click a parcel</strong> to view zoning details</p>
+        <p class="data-source">Data: <a href="https://www.zoningatlas.org" target="_blank">National Zoning Atlas</a></p>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
